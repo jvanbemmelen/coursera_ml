@@ -1,0 +1,83 @@
+---
+title: "Coursera Machine Learning Project"
+author: "Jan van Bemmelen"
+date: "September 6, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## ML Prediction Assignment
+In this project we analyze a dataset of personal activity devices. The goal is to develop a machine learning model that can be used to predict a user's activity based on the metrics gathered by devices like Fitbit HR Charge and Jawbone Up.
+
+## Data Preprocessing
+We start by loading the provided datasets and required library:
+```{r, cache=TRUE}
+library(caret)
+training <- read.csv('pml-training.csv', na.strings = c("", "NA"))
+testing <- read.csv('pml-testing.csv', na.strings = c("", "NA"))
+```
+
+The first seven columns of the datasets contain data that is not useful for model prediction, and can be removed:
+```{r, cache=TRUE}
+training <- training[-c(1:7)]
+testing <- testing[-c(1:7)]
+```
+
+A large number of columns contain only NA values. Let's only keep columns that actually conain useful data:
+```{r, cache=TRUE}
+keep <- names(training[, colSums(is.na(training)) == 0])
+keep <- keep[-53]
+testing <- testing[, c("problem_id", keep)]
+training <- training[, c("classe", keep)]
+```
+
+## Cross Validation
+With the datasets cleaned up we can split them into training, validation and testing sets. The training set will be used to train the model. The validation model will be used to validate the model and compare it with other models. The testing model is used in the final step: to predict the 20 different test cases.
+The testing set was already loaded in the first step so we only have to split the testing set:
+```{r, cache=TRUE}
+inTrain <- createDataPartition(training$classe, p=3/4)[[1]]
+validation <- training[-inTrain,]
+training <- training[ inTrain,]
+```
+
+## Model building
+We can now start building and comparing models. Let's start with a random forest model:
+```{r, cache=TRUE, results="hide"}
+set.seed(1234)
+fit_rf <- train(classe ~ ., data=training, method="rf")
+```
+```{r, cache=TRUE}
+pred_rf <- predict(fit_rf, validation)
+confusionMatrix(pred_rf, validation$classe)$overall[1]
+```
+Without any preprocessing or boosting we find an accuracy of 0.9936786. Quite a nice score!
+
+Let's build a boosted tree model to see if we can get a better score:
+```{r, cache=TRUE, results="hide"}
+fit_gbm <- train(classe ~ ., data=training, method="gbm")
+```
+```{r, cache=TRUE}
+pred_gbm <- predict(fit_gbm, validation)
+confusionMatrix(pred_gbm, validation$classe)$overall[1]
+```
+Getting a lower accuracy there.
+
+Let's stick with random forest and see if we can get a better score by using pca preprocessing:
+```{r, cache=TRUE, results="hide", warning=FALSE}
+fit_rf_pca <- train(classe ~ ., data=training, method="rf", preProcess = "pca")
+```
+```{r, cache=TRUE}
+pred_rf_pca <- predict(fit_rf_pca, validation)
+confusionMatrix(pred_rf_pca, validation$classe)$overall[1]
+```
+An accuracy of 0.9771615 is lower than the basic random forest model we built previously.
+
+## Prediction
+With our best model being the random forest model, let's predict the activities of the testing dataset:
+```{r, cache=TRUE}
+test_predictions <- predict(fit_rf, testing)
+test_predictions
+```
